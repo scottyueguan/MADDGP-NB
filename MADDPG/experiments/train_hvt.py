@@ -220,8 +220,8 @@ def train(arglist):
         np.random.seed(arglist.seed)
         tf.set_random_seed(arglist.seed)
 
-    # with tf_util.make_session(6):
-    with tf_util.single_threaded_session():
+    with tf_util.make_session(config=None, num_cpu=1, make_default=False, graph=None):
+    # with tf_util.single_threaded_session():
         ###########################################
         #         Create environment              #
         ###########################################

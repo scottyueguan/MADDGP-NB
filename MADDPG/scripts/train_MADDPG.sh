@@ -9,9 +9,9 @@ episode_len=25
 num_adversaries=3
 pred_policy=maddpg
 prey_policy=maddpg
-save_dir=
-load_dir=..\data
-plots_dir=..\data
+save_dir=..\data\
+load_dir=..\data\
+plots_dir=..\data\plots\
 
 python ../experiments/train.py \
 --exp-name $exp_name \

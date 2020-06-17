@@ -14,13 +14,13 @@ import numpy as np
 from multiagent_particle_env.core import World, Agent, Landmark
 from multiagent_particle_env.scenario import BaseScenario
 
-__author__ = 'Rolando Fernandez'
+__author__ = 'Scott Guan & Rolando Fernandez'
 __copyright__ = 'Copyright 2020, Multi-Agent Particle Environment'
-__credits__ = ['Rolando Fernandez', 'OpenAI']
+__credits__ = ['Scott Guan', 'Rolando Fernandez', 'OpenAI']
 __license__ = ''
 __version__ = '0.0.1'
-__maintainer__ = 'Rolando Fernandez'
-__email__ = 'rolando.fernandez1.civ@mail.mil'
+__maintainer__ = 'Scott Guan'
+__email__ = 'yguan44@gatech.edu'
 __status__ = 'Dev'
 
 
@@ -230,13 +230,14 @@ class Scenario(BaseScenario):
         # Determine collisions with attackers, assign reward
         for adv in adversaries:
             if agent.collide:
-                if world.is_collision(agent, adv):
+                # Make sure adv is not frozen
+                if world.is_collision(agent, adv) and not adv.freeze:
                     reward += 10
 
         # Determine Attacker collision with HVT and assign penalty
         for adv in adversaries:
             for hvt in landmarks:
-                if world.is_collision(adv, hvt):
+                if world.is_collision(adv, hvt) and not hvt.freeze and not adv.freeze:
                     reward -= 10
 
         # Determine if agent left the screen and assign penalties
@@ -271,12 +272,12 @@ class Scenario(BaseScenario):
         # Determine collisions with defenders, assign penalties
         for ag in agents:
             if agent.collide:
-                if world.is_collision(agent, ag):
+                if world.is_collision(agent, ag) and not agent.freeze:
                     reward -= 10
 
         # Determine Attacker collision with HVT and assign reward
         for hvt in landmarks:
-            if world.is_collision(agent, hvt):
+            if world.is_collision(agent, hvt) and not agent.freeze and not hvt.freeze:
                 reward += 10
 
         # Determine if agent left the screen and assign penalties

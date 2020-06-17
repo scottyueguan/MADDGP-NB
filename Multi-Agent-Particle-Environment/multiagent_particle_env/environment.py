@@ -422,11 +422,11 @@ class MultiAgentEnv(gym.Env):
                     if 'agent' in entity.name:
                         # Unpack color list
                         geom.set_color(*entity.color, alpha=0.5)
-                        geom_sense.set_color(*entity.color, alpha=0.5)
+                        geom_sense.set_color(*entity.color, alpha=0.9)
                     else:
                         # Unpack color list
-                        geom.set_color(*entity.color)
-                        geom_sense.set_color(*entity.color)
+                        geom.set_color(*entity.color, alpha=0.3)
+                        geom_sense.set_color(*entity.color, alpha=0.9)
                     geom.add_attr(xform)
                     geom_sense.add_attr(xform)
                     self.render_geoms.append(geom)
