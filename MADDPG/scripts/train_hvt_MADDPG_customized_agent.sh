@@ -15,7 +15,7 @@ save_dir=/Users/scottguan/CONVERGE/MADDGP-NB/MADDPG/data/$model_name/
 load_dir=/Users/scottguan/CONVERGE/MADDGP-NB/MADDPG/data/$model_name/
 plots_dir=/Users/scottguan/CONVERGE/MADDGP-NB/MADDPG/data/$model_name/plots/
 customized_index=0
-model_file=$original_model_name'_130000'
+model_file=$original_model_name'_150000'
 
 python ../experiments/train_hvt_customized_agent.py \
 --exp-name $exp_name \

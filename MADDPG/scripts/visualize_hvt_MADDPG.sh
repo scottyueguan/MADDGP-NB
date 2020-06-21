@@ -13,7 +13,7 @@ save_dir=/Users/scottguan/CONVERGE/MADDGP-NB/MADDPG/data/$model_name/
 load_dir=/Users/scottguan/CONVERGE/MADDGP-NB/MADDPG/data/$model_name/
 plots_dir=/Users/scottguan/CONVERGE/MADDGP-NB/MADDPG/data/$model_name/plots/
 # model_file=$model_name'_'$total_episodes
-model_file=$model_name'_111000'
+model_file=$model_name'_150000'
 
 python ../experiments/train_hvt.py \
 --exp-name $exp_name \

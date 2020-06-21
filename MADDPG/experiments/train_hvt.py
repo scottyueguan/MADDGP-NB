@@ -268,6 +268,9 @@ def train(arglist):
         if not os.path.exists(arglist.save_dir):
             os.makedirs(arglist.save_dir, exist_ok=True)
 
+        if not os.path.exists(arglist.plots_dir):
+            os.makedirs(arglist.plots_dir, exist_ok=True)
+
         ###########################################
         #             Set parameters              #
         ###########################################
