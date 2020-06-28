@@ -96,6 +96,9 @@ def parse_args():
     # Loss logging
     parser.add_argument("--log-loss", action="store_true", default=False)
 
+    # Customized Agent
+    parser.add_argument('--customized-index', nargs='+', type=int)
+
     # Evaluation
     parser.add_argument("--restore", action="store_true", default=False)
     parser.add_argument("--testing", action="store_true", default=False)
@@ -170,7 +173,7 @@ def get_trainers(env, num_adversaries, obs_shape_n, arglist):
     # Adversaries
     for i in range(num_adversaries):
         trainers.append(trainer(
-            'agent_{}'.format(i), model, obs_shape_n, env.action_space, i, arglist, role="adversary",
+            'customized_agent_{}'.format(i), model, obs_shape_n, env.action_space, i, arglist, role="adversary",
             local_q_func=(arglist.adv_policy=='ddpg')))
 
     # Good Agents
@@ -262,14 +265,13 @@ def train(arglist):
             print("Model File: " + arglist.load_dir + arglist.model_file)
             tf_util.load_state(arglist.load_dir + arglist.model_file)
 
+
+
         ###########################################
         #       Create the save directory         #
         ###########################################
         if not os.path.exists(arglist.save_dir):
             os.makedirs(arglist.save_dir, exist_ok=True)
-
-        if not os.path.exists(arglist.plots_dir):
-            os.makedirs(arglist.plots_dir, exist_ok=True)
 
         ###########################################
         #             Set parameters              #
@@ -391,7 +393,14 @@ def train(arglist):
                         pickle.dump(agent_info[:-1], fp)
                     break
                 continue
-
+            '''
+            # For displaying learned policies
+            if arglist.display:
+                time.sleep(0.1)
+                env.render()
+                # print("Mean Episode Reward: {}".format([np.mean(rew[-arglist.save_rate:]) for rew in agent_rewards]))
+                continue
+            '''
 
             # In testing mode, don't perform model updates
             if arglist.testing:
@@ -408,10 +417,12 @@ def train(arglist):
 
             # Update all trainers, if not in display or benchmark mode
             loss = None
-            for agent in trainers:
-                agent.preupdate()
             for i, agent in enumerate(trainers):
-                loss = agent.update(trainers, train_step)
+                if i in arglist.customized_index:
+                    agent.preupdate()
+            for i, agent in enumerate(trainers):
+                if i in arglist.customized_index:
+                    loss = agent.update(trainers, train_step)
                 if arglist.log_loss and loss is not None:
                     log_loss(arglist, ep_ct, "agent_{}".format(i), loss=loss[1])
 

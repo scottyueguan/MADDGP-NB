@@ -2,10 +2,10 @@
 
 
 exp_name=maddpg_hvt_1v1_custome_agent
-model_name=maddpg_hvt_1v1_custome_agent
+model_name=maddpg_hvt_1v1_custome_agent_v2
 original_model_name=maddpg_hvt_1v1
 scenario=converge/simple_hvt_1v1_random
-total_episodes=150000
+total_episodes=100
 save_rate=1000
 episode_len=50
 num_adversaries=1
@@ -31,6 +31,7 @@ python ../experiments/train_hvt_customized_agent.py \
 --load-dir $load_dir \
 --plots-dir $plots_dir \
 --model-file $model_file \
+--done-callback \
 --logging \
 --log-loss \
 --restore \

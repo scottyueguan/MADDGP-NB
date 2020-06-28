@@ -21,8 +21,10 @@ python ../experiments/train_hvt.py \
 --load-dir $load_dir \
 --model-file $model_file \
 --max-episode-len $episode_len \
+--done-callback \
 --restore \
 --testing \
 --display
+
 
 echo Finished...
