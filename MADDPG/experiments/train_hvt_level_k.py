@@ -120,6 +120,10 @@ def parse_args():
     parser.add_argument("--training-history", type=int, default=1,
                         help="Number of frames of agent history to include in training")
 
+    #level-k
+    parser.add_argument('--training-role', nargs='+', type=str, default="defender", help='role of the training agent')
+    parser.add_argument('--level', type=int, help='Level of the training agent.')
+
     return parser.parse_args()
 
 
@@ -151,6 +155,33 @@ def mlp_model(input, num_outputs, scope, reuse=False, num_units=64, rnn_cell=Non
         return out
 
 
+def get_level_k_info(arglist):
+    # Training agent info
+    training_agent_level = arglist.level
+    training_agent_role = arglist.training_role[0]
+
+    if training_agent_level == 0:
+        fixed_agent_level = 0
+    else:
+        fixed_agent_level = training_agent_level - 1
+
+    if training_agent_role == 'defender':
+        good_agent_level = training_agent_level
+        adv_agent_level = fixed_agent_level
+        updating_indices = [1]
+    elif training_agent_role == 'attacker':
+        good_agent_level = fixed_agent_level
+        adv_agent_level = training_agent_level
+        updating_indices = [0]
+    else:
+        raise Exception('Agent role wrong!')
+
+    if training_agent_level == 0:
+        updating_indices = [0, 1]
+
+    return good_agent_level, adv_agent_level, updating_indices
+
+
 def get_trainers(env, num_adversaries, obs_shape_n, arglist):
     """
     Creates the instances of learning agents.
@@ -170,16 +201,18 @@ def get_trainers(env, num_adversaries, obs_shape_n, arglist):
 
     trainer = MADDPGAgentTrainer
 
+    good_agent_level, adv_agent_level, _ = get_level_k_info(arglist)
+
     # Adversaries
     for i in range(num_adversaries):
         trainers.append(trainer(
-            'agent_{}'.format(i), model, obs_shape_n, env.action_space, i, arglist, role="adversary",
+            'level_{}_attacker_{}'.format(adv_agent_level, i), model, obs_shape_n, env.action_space, i, arglist, role="adversary",
             local_q_func=(arglist.adv_policy=='ddpg')))
 
     # Good Agents
     for i in range(num_adversaries, env.n):
         trainers.append(trainer(
-            'agent_{}'.format(i), model, obs_shape_n, env.action_space, i, arglist,
+            'level_{}_defender_{}'.format(good_agent_level, i), model, obs_shape_n, env.action_space, i, arglist,
             local_q_func=(arglist.good_policy=='ddpg')))
 
     return trainers
@@ -217,6 +250,10 @@ def train(arglist):
     Args:
         arglist (argparse.Namespace): Parsed commandline arguments object
     """
+
+    # suppress tensorflow warnings
+    tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
+
     tf.reset_default_graph()
 
     if arglist.seed is not None:
@@ -238,6 +275,7 @@ def train(arglist):
         num_adversaries = min(env.n, arglist.num_adversaries)
         trainers = get_trainers(env, num_adversaries, obs_shape_n, arglist)
 
+        print("Training Level {} {}.".format(arglist.level, arglist.training_role[0]))
         print("Number of Adversaries: {}".format(num_adversaries))
         print('Experiment: {}. Using good policy {} and adv policy {}'.format(arglist.exp_name,
                                                                               arglist.good_policy,
@@ -254,8 +292,13 @@ def train(arglist):
         if arglist.load_dir == "":
             arglist.load_dir = arglist.save_dir
 
+        ###########################################
+        #   Get Level-k Information               #
+        ###########################################
+        good_agent_level, adv_agent_level, updating_indices = get_level_k_info(arglist)
+
         # if arglist.display or arglist.restore or arglist.benchmark or arglist.load_dir is not None:
-        if arglist.restore or arglist.benchmark or arglist.load_dir is not None:
+        if ((arglist.restore or arglist.load_dir is not None) and arglist.level != 0) or arglist.benchmark:
             print('Loading previous state...')
 
             # Set model file
@@ -265,17 +308,20 @@ def train(arglist):
             print("Model File: " + arglist.load_dir + arglist.model_file)
             tf_util.load_state(arglist.load_dir + arglist.model_file)
 
+
+
+
             # Reset customized agents
-            for customized_index in arglist.customized_index:
-                if customized_index in range(num_adversaries):
-                    trainers[customized_index] = MADDPGAgentTrainer(
-                        'customized_agent_{}'.format(customized_index), mlp_model, obs_shape_n, env.action_space,
-                        customized_index, arglist, role="adversary",
+            for updating_index in updating_indices:
+                if updating_index in range(num_adversaries):
+                    trainers[updating_index] = MADDPGAgentTrainer(
+                        'level_{}_attacker_{}'.format(adv_agent_level, updating_index), mlp_model, obs_shape_n, env.action_space,
+                        updating_index, arglist, role="adversary",
                         local_q_func=(arglist.adv_policy == 'ddpg'))
                 else:
-                    trainers[customized_index] = MADDPGAgentTrainer(
-                        'customized_agent_{}'.format(customized_index), mlp_model, obs_shape_n, env.action_space,
-                        customized_index, arglist,
+                    trainers[updating_index] = MADDPGAgentTrainer(
+                        'level_{}_defender_{}'.format(good_agent_level,updating_index), mlp_model, obs_shape_n, env.action_space,
+                        updating_index, arglist,
                         local_q_func=(arglist.good_policy == 'ddpg'))
             tf_util.initialize()
 
@@ -427,13 +473,13 @@ def train(arglist):
                     break
                 continue
 
-            # Update all trainers, if not in display or benchmark mode
+            # If not in display or benchmark mode, update trainers with index in updating_indices.
             loss = None
             for i, agent in enumerate(trainers):
-                if i in arglist.customized_index:
+                if i in updating_indices:
                     agent.preupdate()
             for i, agent in enumerate(trainers):
-                if i in arglist.customized_index:
+                if i in updating_indices:
                     loss = agent.update(trainers, train_step)
                 if arglist.log_loss and loss is not None:
                     log_loss(arglist, ep_ct, "agent_{}".format(i), loss=loss[1])
@@ -477,6 +523,9 @@ def train(arglist):
 
             # Saves final episode reward for plotting training curve later
             if len(episode_rewards) > arglist.num_episodes:
+                if not os.path.exists(arglist.plots_dir):
+                    os.makedirs(arglist.plots_dir)
+
                 rew_file_name = arglist.plots_dir + arglist.exp_name + '_rewards.pkl'
                 with open(rew_file_name, 'wb') as fp:
                     pickle.dump(final_ep_rewards, fp)

@@ -179,7 +179,7 @@ def get_trainers(env, num_adversaries, obs_shape_n, arglist):
     # Good Agents
     for i in range(num_adversaries, env.n):
         trainers.append(trainer(
-            'agent_{}'.format(i), model, obs_shape_n, env.action_space, i, arglist,
+            'customized_agent_{}'.format(i), model, obs_shape_n, env.action_space, i, arglist,
             local_q_func=(arglist.good_policy=='ddpg')))
 
     return trainers

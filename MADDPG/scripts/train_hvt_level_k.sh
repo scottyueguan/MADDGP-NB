@@ -1,11 +1,10 @@
 #!/bin/sh
-
-
-exp_name=maddpg_hvt_1v1_custome_agent
-model_name=maddpg_hvt_1v1_custome_agent_v2
-original_model_name=maddpg_hvt_1v1
+level=0
+training_role=attacker
+exp_name=maddpg_hvt_1v1_level_$level"_"$training_role
+model_name=exp_name
 scenario=converge/simple_hvt_1v1_random
-total_episodes=100
+total_episodes=150000
 save_rate=1000
 episode_len=50
 num_adversaries=1
@@ -13,12 +12,15 @@ pred_policy=maddpg
 prey_policy=maddpg
 save_dir=/Users/scottguan/CONVERGE/MADDGP-NB/MADDPG/data/$model_name/
 load_dir=/Users/scottguan/CONVERGE/MADDGP-NB/MADDPG/data/$model_name/
-plots_dir=/Users/scottguan/CONVERGE/MADDGP-NB/MADDPG/data/$model_name/plots/
-customized_index=0
-model_file=$original_model_name'_150000'
+plots_dir=/Users/scottguan/CONVERGE/MADDGP-NB/MADDPG/data/$model_name/
+model_file=$original_model_name'_300000'
 
-python ../experiments/train_hvt_customized_agent.py \
+python ../experiments/train_hvt_level_k.py \
+--num-episodes $total_episodes \
+--plots-dir $plots_dir \
+--training-role $training_role \
 --exp-name $exp_name \
+--level $level \
 --scenario $scenario \
 --done-callback \
 --good-policy $prey_policy \
@@ -35,7 +37,6 @@ python ../experiments/train_hvt_customized_agent.py \
 --logging \
 --log-loss \
 --restore \
---customized-index $customized_index
 
 
 echo Finished...
