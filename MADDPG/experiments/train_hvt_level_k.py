@@ -181,6 +181,34 @@ def get_level_k_info(arglist):
 
     return good_agent_level, adv_agent_level, updating_indices
 
+def get_initial_level_k_info(arglist):
+    # Training agent info
+    training_agent_level = arglist.level
+    training_agent_role = arglist.training_role[0]
+
+    if training_agent_level == 0:
+        fixed_agent_level = 0
+        training_agent_level = 0
+    else:
+        fixed_agent_level = training_agent_level - 1
+        training_agent_level = training_agent_level - 2
+
+    if training_agent_role == 'defender':
+        good_agent_level = training_agent_level
+        adv_agent_level = fixed_agent_level
+        updating_indices = [1]
+    elif training_agent_role == 'attacker':
+        good_agent_level = fixed_agent_level
+        adv_agent_level = training_agent_level
+        updating_indices = [0]
+    else:
+        raise Exception('Agent role wrong!')
+
+    if training_agent_level == 0:
+        updating_indices = [0, 1]
+
+    return good_agent_level, adv_agent_level, updating_indices
+
 
 def get_trainers(env, num_adversaries, obs_shape_n, arglist):
     """
@@ -201,7 +229,8 @@ def get_trainers(env, num_adversaries, obs_shape_n, arglist):
 
     trainer = MADDPGAgentTrainer
 
-    good_agent_level, adv_agent_level, _ = get_level_k_info(arglist)
+    good_agent_level, adv_agent_level, _ = get_initial_level_k_info(arglist)
+    adv_agent_level -= 1
 
     # Adversaries
     for i in range(num_adversaries):

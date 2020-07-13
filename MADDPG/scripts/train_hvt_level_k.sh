@@ -1,8 +1,8 @@
 #!/bin/sh
-level=0
+level=1
 training_role=attacker
 exp_name=maddpg_hvt_1v1_level_$level"_"$training_role
-model_name=exp_name
+model_name=level_$level"_"$training_role
 scenario=converge/simple_hvt_1v1_random
 total_episodes=150000
 save_rate=1000
@@ -13,7 +13,7 @@ prey_policy=maddpg
 save_dir=/Users/scottguan/CONVERGE/MADDGP-NB/MADDPG/data/$model_name/
 load_dir=/Users/scottguan/CONVERGE/MADDGP-NB/MADDPG/data/$model_name/
 plots_dir=/Users/scottguan/CONVERGE/MADDGP-NB/MADDPG/data/$model_name/
-model_file=$original_model_name'_300000'
+model_file="maddpg_hvt_1v1_level_0_attacker_450000"
 
 python ../experiments/train_hvt_level_k.py \
 --num-episodes $total_episodes \
