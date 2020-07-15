@@ -204,8 +204,6 @@ def get_initial_level_k_info(arglist):
     else:
         raise Exception('Agent role wrong!')
 
-    if training_agent_level == 0:
-        updating_indices = [0, 1]
 
     return good_agent_level, adv_agent_level, updating_indices
 
@@ -230,7 +228,7 @@ def get_trainers(env, num_adversaries, obs_shape_n, arglist):
     trainer = MADDPGAgentTrainer
 
     good_agent_level, adv_agent_level, _ = get_initial_level_k_info(arglist)
-    adv_agent_level -= 1
+
 
     # Adversaries
     for i in range(num_adversaries):
