@@ -1,19 +1,19 @@
 #!/bin/sh
-level=1
+level=0
 training_role=attacker
 exp_name=maddpg_hvt_1v1_level_$level"_"$training_role
 model_name=level_$level"_"$training_role
-scenario=converge/simple_hvt_1v1_random
+scenario=converge/simple_hvt_1v1_model17
 total_episodes=150000
 save_rate=1000
 episode_len=50
 num_adversaries=1
 pred_policy=maddpg
 prey_policy=maddpg
-save_dir=/Users/scottguan/CONVERGE/MADDGP-NB/MADDPG/data/$model_name/
-load_dir=/Users/scottguan/CONVERGE/MADDGP-NB/MADDPG/data/$model_name/
-plots_dir=/Users/scottguan/CONVERGE/MADDGP-NB/MADDPG/data/$model_name/
-model_file="maddpg_hvt_1v1_level_0_attacker_450000"
+save_dir=/Users/scottguan/CONVERGE/MADDGP-NB/MADDPG/data_model17/$model_name/
+load_dir=/Users/scottguan/CONVERGE/MADDGP-NB/MADDPG/data_model17/$model_name/
+plots_dir=/Users/scottguan/CONVERGE/MADDGP-NB/MADDPG/data_model17/$model_name/
+model_file="maddpg_hvt_1v1_level_4_attacker_1050000"
 
 python ../experiments/train_hvt_level_k.py \
 --num-episodes $total_episodes \
@@ -36,7 +36,7 @@ python ../experiments/train_hvt_level_k.py \
 --done-callback \
 --logging \
 --log-loss \
---restore \
+# --restore \
 
 
 echo Finished...

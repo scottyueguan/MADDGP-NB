@@ -29,11 +29,11 @@ import time
 # script_path = os.path.abspath(__file__)
 script_path = os.path.abspath(sys.argv[0])
 split_script_path = script_path.split("/")
-module_parent_dir = "/".join(split_script_path[:len(split_script_path) - 3])
+module_parent_dir = "/".join(split_script_path[:len(split_script_path)-3])
 
 if 'win' in sys.platform:
     split_script_path = script_path.split("\\")
-    module_parent_dir = "\\".join(split_script_path[:len(split_script_path) - 3])
+    module_parent_dir = "\\".join(split_script_path[:len(split_script_path)-3])
 
 sys.path.insert(0, module_parent_dir + '/MADDPG/')
 sys.path.insert(0, module_parent_dir + '/Multi-Agent-Particle-Environment/')
@@ -42,6 +42,7 @@ from maddpg.trainer.maddpg import MADDPGAgentTrainer
 from multiagent_particle_env.make_env import make_env
 
 import maddpg.common.tf_util as tf_util
+
 
 __author__ = 'Rolando Fernandez'
 __copyright__ = 'Copyright 2020, Multi-Agent Deep Deterministic Policy Gradient'
@@ -95,8 +96,6 @@ def parse_args():
     # Loss logging
     parser.add_argument("--log-loss", action="store_true", default=False)
 
-    # Customized Agent
-    parser.add_argument('--customized-index', nargs='+', type=int)
 
     # Evaluation
     parser.add_argument("--restore", action="store_true", default=False)
@@ -111,7 +110,7 @@ def parse_args():
     parser.add_argument("--logging", action="store_true", default=False, help="Flag to control logging of agent data")
     parser.add_argument("--log-append", type=str, default="", help="Additional string to append to log file")
 
-    # CCM
+    #CCM
     parser.add_argument("--perturbation", action="store_true", default=False,
                         help="Flag for controlling perturbation analysis")
     parser.add_argument("--seed", type=int, default=None, help="Random seed for evaluation")
@@ -119,9 +118,9 @@ def parse_args():
     parser.add_argument("--training-history", type=int, default=1,
                         help="Number of frames of agent history to include in training")
 
-    # level-k
-    parser.add_argument('--training-role', nargs='+', type=str, default="defender", help='role of the training agent')
-    parser.add_argument('--level', type=int, help='Level of the training agent.')
+    #level-k
+    parser.add_argument('--attacker-level', type=int, help='Level of the attacker.')
+    parser.add_argument('--defender-level', type=int, help='Level of the defender.')
 
     return parser.parse_args()
 
@@ -154,59 +153,6 @@ def mlp_model(input, num_outputs, scope, reuse=False, num_units=64, rnn_cell=Non
         return out
 
 
-def get_level_k_info(arglist):
-    # Training agent info
-    training_agent_level = arglist.level
-    training_agent_role = arglist.training_role[0]
-
-    if training_agent_level == 0:
-        fixed_agent_level = 0
-    else:
-        fixed_agent_level = training_agent_level - 1
-
-    if training_agent_role == 'defender':
-        good_agent_level = training_agent_level
-        adv_agent_level = fixed_agent_level
-        updating_indices = [1]
-    elif training_agent_role == 'attacker':
-        good_agent_level = fixed_agent_level
-        adv_agent_level = training_agent_level
-        updating_indices = [0]
-    else:
-        raise Exception('Agent role wrong!')
-
-    if training_agent_level == 0:
-        updating_indices = [0, 1]
-
-    return good_agent_level, adv_agent_level, updating_indices
-
-
-def get_initial_level_k_info(arglist):
-    # Training agent info
-    training_agent_level = arglist.level
-    training_agent_role = arglist.training_role[0]
-
-    if training_agent_level == 0:
-        fixed_agent_level = 0
-        training_agent_level = 0
-    else:
-        fixed_agent_level = training_agent_level - 1
-        training_agent_level = training_agent_level - 2
-
-    if training_agent_role == 'defender':
-        good_agent_level = training_agent_level
-        adv_agent_level = fixed_agent_level
-        updating_indices = [1]
-    elif training_agent_role == 'attacker':
-        good_agent_level = fixed_agent_level
-        adv_agent_level = training_agent_level
-        updating_indices = [0]
-    else:
-        raise Exception('Agent role wrong!')
-
-    return good_agent_level, adv_agent_level, updating_indices
-
-
 def get_trainers(env, num_adversaries, obs_shape_n, arglist):
     """
     Creates the instances of learning agents.
@@ -226,20 +172,20 @@ def get_trainers(env, num_adversaries, obs_shape_n, arglist):
 
     trainer = MADDPGAgentTrainer
 
-    good_agent_level, adv_agent_level, _ = get_initial_level_k_info(arglist)
+    adv_agent_level = arglist.attacker_level
+    good_agent_level = arglist.defender_level
 
     # Adversaries
     for i in range(num_adversaries):
         trainers.append(trainer(
-            'level_{}_attacker_{}'.format(adv_agent_level, i), model, obs_shape_n, env.action_space, i, arglist,
-            role="adversary",
-            local_q_func=(arglist.adv_policy == 'ddpg')))
+            'level_{}_attacker_{}'.format(adv_agent_level, i), model, obs_shape_n, env.action_space, i, arglist, role="adversary",
+            local_q_func=(arglist.adv_policy=='ddpg')))
 
     # Good Agents
     for i in range(num_adversaries, env.n):
         trainers.append(trainer(
             'level_{}_defender_{}'.format(good_agent_level, i), model, obs_shape_n, env.action_space, i, arglist,
-            local_q_func=(arglist.good_policy == 'ddpg')))
+            local_q_func=(arglist.good_policy=='ddpg')))
 
     return trainers
 
@@ -276,10 +222,6 @@ def train(arglist):
     Args:
         arglist (argparse.Namespace): Parsed commandline arguments object
     """
-
-    # suppress tensorflow warnings
-    tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
-
     tf.reset_default_graph()
 
     if arglist.seed is not None:
@@ -287,7 +229,7 @@ def train(arglist):
         tf.set_random_seed(arglist.seed)
 
     with tf_util.make_session(config=None, num_cpu=1, make_default=False, graph=None):
-        # with tf_util.single_threaded_session():
+    # with tf_util.single_threaded_session():
         ###########################################
         #         Create environment              #
         ###########################################
@@ -301,7 +243,6 @@ def train(arglist):
         num_adversaries = min(env.n, arglist.num_adversaries)
         trainers = get_trainers(env, num_adversaries, obs_shape_n, arglist)
 
-        print("Training Level {} {}.".format(arglist.level, arglist.training_role[0]))
         print("Number of Adversaries: {}".format(num_adversaries))
         print('Experiment: {}. Using good policy {} and adv policy {}'.format(arglist.exp_name,
                                                                               arglist.good_policy,
@@ -318,37 +259,22 @@ def train(arglist):
         if arglist.load_dir == "":
             arglist.load_dir = arglist.save_dir
 
-        ###########################################
-        #   Get Level-k Information               #
-        ###########################################
-        good_agent_level, adv_agent_level, updating_indices = get_level_k_info(arglist)
-
         # if arglist.display or arglist.restore or arglist.benchmark or arglist.load_dir is not None:
-        if ((arglist.restore or arglist.load_dir is not None) and arglist.level != 0) or arglist.benchmark:
+        if arglist.restore or arglist.benchmark or arglist.load_dir is not None:
             print('Loading previous state...')
 
-            # Set model file
-            if arglist.model_file == "":
-                arglist.model_file = arglist.exp_name
+            attacker_model_file = "level_{}_attacker".format(arglist.attacker_level)
+            defender_model_file = "level_{}_attacker".format(arglist.defender_level)
 
-            print("Model File: " + arglist.load_dir + arglist.model_file)
-            tf_util.load_state(arglist.load_dir + arglist.model_file)
+            print("Attacker Model File: " + arglist.load_dir + attacker_model_file)
+            # tf_util.load_state(fname=arglist.load_dir + attacker_model_file, var_name="level_{}_attakcer_{}".format(arglist.attacker_level, 0))
+            tf_util.load_state(fname=arglist.load_dir + attacker_model_file)
+            print("Defender Model File: "+ arglist.load_dir + defender_model_file)
+            tf_util.load_state(fname=arglist.load_dir + defender_model_file, var_name="level_{}_defender_{}".format(arglist.defender_level, 1))
 
-            # Reset customized agents
-            for updating_index in updating_indices:
-                if updating_index in range(num_adversaries):
-                    trainers[updating_index] = MADDPGAgentTrainer(
-                        'level_{}_attacker_{}'.format(adv_agent_level, updating_index), mlp_model, obs_shape_n,
-                        env.action_space,
-                        updating_index, arglist, role="adversary",
-                        local_q_func=(arglist.adv_policy == 'ddpg'))
-                else:
-                    trainers[updating_index] = MADDPGAgentTrainer(
-                        'level_{}_defender_{}'.format(good_agent_level, updating_index), mlp_model, obs_shape_n,
-                        env.action_space,
-                        updating_index, arglist,
-                        local_q_func=(arglist.good_policy == 'ddpg'))
-            tf_util.initialize()
+
+
+
 
         ###########################################
         #       Create the save directory         #
@@ -491,20 +417,20 @@ def train(arglist):
                     print("episodes: {}, "
                           "mean episode reward: {}, time: {}".format(len(episode_rewards),
                                                                      np.mean(episode_rewards[-arglist.save_rate:]),
-                                                                     round(time.time() - t_start, 3)))
+                                                                     round(time.time()-t_start, 3)))
                     env.logger.save("State",
                                     arglist.save_dir,
                                     filename=arglist.exp_name + '_state' + '_' + str(prev_ep_ct) + arglist.log_append)
                     break
                 continue
 
-            # If not in display or benchmark mode, update trainers with index in updating_indices.
+            # Update all trainers, if not in display or benchmark mode
             loss = None
             for i, agent in enumerate(trainers):
-                if i in updating_indices:
+                if i in arglist.customized_index:
                     agent.preupdate()
             for i, agent in enumerate(trainers):
-                if i in updating_indices:
+                if i in arglist.customized_index:
                     loss = agent.update(trainers, train_step)
                 if arglist.log_loss and loss is not None:
                     log_loss(arglist, ep_ct, "agent_{}".format(i), loss=loss[1])
@@ -520,7 +446,7 @@ def train(arglist):
                 # TODO: Implement some checks so that we don't overwrite old networks unintentionally?
 
                 # Save model state
-                tf_util.save_state(arglist.save_dir + arglist.exp_name + '_' + str(len(episode_rewards) + prev_ep_ct),
+                tf_util.save_state(arglist.save_dir + arglist.exp_name + '_' + str(len(episode_rewards)+prev_ep_ct),
                                    saver=saver)
 
                 # Print statement depends on whether or not there are adversaries
@@ -548,9 +474,6 @@ def train(arglist):
 
             # Saves final episode reward for plotting training curve later
             if len(episode_rewards) > arglist.num_episodes:
-                if not os.path.exists(arglist.plots_dir):
-                    os.makedirs(arglist.plots_dir)
-
                 rew_file_name = arglist.plots_dir + arglist.exp_name + '_rewards.pkl'
                 with open(rew_file_name, 'wb') as fp:
                     pickle.dump(final_ep_rewards, fp)
