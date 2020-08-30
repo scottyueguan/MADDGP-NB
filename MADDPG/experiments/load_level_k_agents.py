@@ -270,7 +270,7 @@ def train(arglist):
             # tf_util.load_state(fname=arglist.load_dir + attacker_model_file, var_name="level_{}_attakcer_{}".format(arglist.attacker_level, 0))
             tf_util.load_state(fname=arglist.load_dir + attacker_model_file)
             print("Defender Model File: "+ arglist.load_dir + defender_model_file)
-            tf_util.load_state(fname=arglist.load_dir + defender_model_file, var_name="level_{}_defender_{}".format(arglist.defender_level, 1))
+            tf_util.load_state(fname=arglist.load_dir + defender_model_file, var_prefix="level_{}_defender_{}".format(arglist.defender_level, 1))
 
 
 
