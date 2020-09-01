@@ -29,11 +29,11 @@ import time
 # script_path = os.path.abspath(__file__)
 script_path = os.path.abspath(sys.argv[0])
 split_script_path = script_path.split("/")
-module_parent_dir = "/".join(split_script_path[:len(split_script_path)-3])
+module_parent_dir = "/".join(split_script_path[:len(split_script_path) - 3])
 
 if 'win' in sys.platform:
     split_script_path = script_path.split("\\")
-    module_parent_dir = "\\".join(split_script_path[:len(split_script_path)-3])
+    module_parent_dir = "\\".join(split_script_path[:len(split_script_path) - 3])
 
 sys.path.insert(0, module_parent_dir + '/MADDPG/')
 sys.path.insert(0, module_parent_dir + '/Multi-Agent-Particle-Environment/')
@@ -42,7 +42,6 @@ from maddpg.trainer.maddpg import MADDPGAgentTrainer
 from multiagent_particle_env.make_env import make_env
 
 import maddpg.common.tf_util as tf_util
-
 
 __author__ = 'Rolando Fernandez'
 __copyright__ = 'Copyright 2020, Multi-Agent Deep Deterministic Policy Gradient'
@@ -96,6 +95,8 @@ def parse_args():
     # Loss logging
     parser.add_argument("--log-loss", action="store_true", default=False)
 
+    # Customized Agent
+    parser.add_argument('--customized-index', nargs='+', type=int)
 
     # Evaluation
     parser.add_argument("--restore", action="store_true", default=False)
@@ -110,7 +111,7 @@ def parse_args():
     parser.add_argument("--logging", action="store_true", default=False, help="Flag to control logging of agent data")
     parser.add_argument("--log-append", type=str, default="", help="Additional string to append to log file")
 
-    #CCM
+    # CCM
     parser.add_argument("--perturbation", action="store_true", default=False,
                         help="Flag for controlling perturbation analysis")
     parser.add_argument("--seed", type=int, default=None, help="Random seed for evaluation")
@@ -118,9 +119,12 @@ def parse_args():
     parser.add_argument("--training-history", type=int, default=1,
                         help="Number of frames of agent history to include in training")
 
-    #level-k
-    parser.add_argument('--attacker-level', type=int, help='Level of the attacker.')
-    parser.add_argument('--defender-level', type=int, help='Level of the defender.')
+    # level-k
+    parser.add_argument('--training-role', nargs='+', type=str, default="defender", help='role of the training agent')
+    parser.add_argument('--level', type=int, help='Max levels used by the opponent')
+    parser.add_argument('--evaluate-rate', type=int, default=5000)
+    parser.add_argument('--evaluate-length', type=int, default=100)
+    parser.add_argument('--level-k-select-print', default=False)
 
     return parser.parse_args()
 
@@ -172,23 +176,58 @@ def get_trainers(env, num_adversaries, obs_shape_n, arglist):
 
     trainer = MADDPGAgentTrainer
 
-    adv_agent_level = arglist.attacker_level
-    good_agent_level = arglist.defender_level
+    max_opp_level = arglist.level
+    super_agent_role = arglist.training_role[0]
 
-    # Adversaries
-    for i in range(num_adversaries):
-        trainers.append(trainer(
-            'level_{}_attacker_{}'.format(adv_agent_level, i), model, obs_shape_n, env.action_space, i, arglist, role="adversary",
-            local_q_func=(arglist.adv_policy=='ddpg')))
+    if super_agent_role == "defender":
+        # Adversaries
+        for i in range(max_opp_level + 1):
+            trainers.append(trainer(
+                'level_{}_attacker_{}'.format(i, 0), model, obs_shape_n, env.action_space, 0, arglist,
+                role="adversary",
+                local_q_func=(arglist.adv_policy == 'ddpg')))
 
-    # Good Agents
-    for i in range(num_adversaries, env.n):
-        trainers.append(trainer(
-            'level_{}_defender_{}'.format(good_agent_level, i), model, obs_shape_n, env.action_space, i, arglist,
-            local_q_func=(arglist.good_policy=='ddpg')))
+        # Good Agents
+        for i in range(max_opp_level + 1, max_opp_level + 2):
+            trainers.append(trainer(
+                'super_defender_{}'.format(1), model, obs_shape_n, env.action_space, 1, arglist,
+                local_q_func=(arglist.good_policy == 'ddpg')))
+    elif super_agent_role == "attacker":
+        # Adversaries
+        for i in range(1):
+            trainers.append(trainer(
+                'super_attacker_{}'.format(0), model, obs_shape_n, env.action_space, 0, arglist,
+                role="adversary",
+                local_q_func=(arglist.adv_policy == 'ddpg')))
+
+        # Good Agents
+        for i in range(1, max_opp_level + 2):
+            trainers.append(trainer(
+                'level_{}_defender_{}'.format(i - 1, 1), model, obs_shape_n, env.action_space, 1, arglist,
+                local_q_func=(arglist.good_policy == 'ddpg')))
 
     return trainers
 
+
+def get_update_indices(training_role=None, opponent_role=None, p_opponent=None, arglist=None):
+    max_level = arglist.level
+    if training_role == "defender":
+        opponent_indices = range(max_level + 1)
+        training_index = max_level + 1
+    elif training_role == "defender":
+        opponent_indices = range(1, max_level + 2)
+        training_index = 0
+    opponent_select_level = np.random.choice(range(max_level + 1), 1, p=p_opponent)[0]
+    opponent_select_index = opponent_indices[opponent_select_level]
+    training_update_index = training_index
+
+    return training_update_index, opponent_select_index, opponent_select_level
+
+def get_role_index(role=None):
+    if role == "defender":
+        return 1
+    elif role == "attacker":
+        return 0
 
 def log_loss(arglist, ep_ct, agent_name, loss=None, initialize=False):
     """
@@ -222,6 +261,20 @@ def train(arglist):
     Args:
         arglist (argparse.Namespace): Parsed commandline arguments object
     """
+    # Assign roles
+    training_role = arglist.training_role[0]
+    if arglist.training_role[0] == "defender":
+        opponent_role = "attacker"
+        opponent_index = 0
+    elif arglist.training_role[0] == "attacker":
+        opponent_role = "defender"
+        opponent_index = 1
+    else:
+        raise Exception("training role error!")
+
+    # suppress tensorflow warnings
+    tf.compat.v1.logging.set_verbosity(tf.compat.v1.logging.ERROR)
+
     tf.reset_default_graph()
 
     if arglist.seed is not None:
@@ -229,7 +282,7 @@ def train(arglist):
         tf.set_random_seed(arglist.seed)
 
     with tf_util.make_session(config=None, num_cpu=1, make_default=False, graph=None):
-    # with tf_util.single_threaded_session():
+        # with tf_util.single_threaded_session():
         ###########################################
         #         Create environment              #
         ###########################################
@@ -243,6 +296,8 @@ def train(arglist):
         num_adversaries = min(env.n, arglist.num_adversaries)
         trainers = get_trainers(env, num_adversaries, obs_shape_n, arglist)
 
+        print("Training super {} against level 0 to {} opponent."
+              .format(arglist.training_role[0], arglist.level))
         print("Number of Adversaries: {}".format(num_adversaries))
         print('Experiment: {}. Using good policy {} and adv policy {}'.format(arglist.exp_name,
                                                                               arglist.good_policy,
@@ -260,33 +315,23 @@ def train(arglist):
             arglist.load_dir = arglist.save_dir
 
         # if arglist.display or arglist.restore or arglist.benchmark or arglist.load_dir is not None:
-        if arglist.restore or arglist.benchmark or arglist.load_dir is not None:
+        if ((arglist.restore or arglist.load_dir is not None) and arglist.level != 0) or arglist.benchmark:
             print('Loading previous state...')
 
-            attacker_subfolder = "level_{}_attacker/".format(arglist.attacker_level)
-            defender_subfolder = "level_{}_defender/".format(arglist.defender_level)
+            print("Level-k folder: " + arglist.load_dir)
 
-            attacker_model_file = "maddpg_hvt_1v1_level_{}_attacker".format(arglist.attacker_level)
-            defender_model_file = "maddpg_hvt_1v1_level_{}_defender".format(arglist.defender_level)
-
-            print("Attacker Model File: " + arglist.load_dir + attacker_subfolder + attacker_model_file)
-            # tf_util.load_state(fname=arglist.load_dir + attacker_model_file, var_name="level_{}_attakcer_{}".format(arglist.attacker_level, 0))
-            tf_util.load_state(fname=arglist.load_dir + attacker_subfolder +attacker_model_file,
-                               var_prefix="level_{}_attacker_{}".format(arglist.attacker_level, 0))
-
-            print("Defender Model File: " + arglist.load_dir + defender_subfolder + defender_model_file)
-            tf_util.load_state(fname=arglist.load_dir + defender_subfolder + defender_model_file,
-                               var_prefix="level_{}_defender_{}".format(arglist.defender_level, 1))
-
-
-
-
+            for opp_level in range(0, arglist.level + 1):
+                opp_model_file = "level_{}_{}".format(opp_level, opponent_role)
+                tf_util.load_state(fname=arglist.load_dir + opp_model_file,
+                                   var_prefix="level_{}_{}_{}".format(opp_level, opponent_role, opponent_index))
 
         ###########################################
         #       Create the save directory         #
         ###########################################
         if not os.path.exists(arglist.save_dir):
             os.makedirs(arglist.save_dir, exist_ok=True)
+        if not os.path.exists(arglist.plots_dir):
+            os.makedirs(arglist.plots_dir, exist_ok=True)
 
         ###########################################
         #             Set parameters              #
@@ -335,13 +380,42 @@ def train(arglist):
         #                 Start                   #
         ###########################################
         print('Starting iterations...')
+
+        # Initialize opponent selection distribution to uniform
+        p_opponent_selection = np.ones(arglist.level + 1) / (arglist.level + 1)
+
+        # Initialize evaluate_flag
+        evaluate_flag = False
+        evaluation_done = False
+
+        # initialize worst performing level list
+        worst_performing_levels = []
+
         while True:
             # TODO: Switch to is isinstance()
             # if type(env.world.scripted_agents[0].action) == type(None):
             #     print("Error")
 
+
+            # Get opponent and training agents' indices
+            good_update_index, opponent_select_index, opponent_select_level = get_update_indices(training_role,
+                                                                                                 opponent_role,
+                                                                                                 p_opponent_selection,
+                                                                                                 arglist)
+            updating_indices = [good_update_index]
+
             # Get action
-            action_n = [agent.action(obs) for agent, obs in zip(trainers, obs_n)]
+            good_trainer = trainers[good_update_index]
+            opp_trainer = trainers[opponent_select_index]
+
+            if good_update_index > opponent_select_index:
+                selected_trainers = [opp_trainer, good_trainer]
+            elif good_update_index < opponent_select_index:
+                selected_trainers = [good_trainer, opp_trainer]
+            else:
+                raise Exception("Trainer index selection error!")
+
+            action_n = [agent.action(obs) for agent, obs in zip(selected_trainers, obs_n)]
 
             # Environment step
             new_obs_n, rew_n, done_n, info_n = env.step(action_n)
@@ -362,8 +436,11 @@ def train(arglist):
             terminal = (episode_step >= arglist.max_episode_len)
 
             # Collect experience
-            for i, agent in enumerate(trainers):
+            for i, agent in enumerate(selected_trainers):
                 agent.experience(obs_n[i], action_n[i], rew_n[i], new_obs_n[i], done_n[i], terminal)
+                if agent.name == "super_defender_1":
+                    DEBUG = True
+            assert(DEBUG == True)
             obs_n = new_obs_n
 
             for i, rew in enumerate(rew_n):
@@ -423,26 +500,80 @@ def train(arglist):
                     print("episodes: {}, "
                           "mean episode reward: {}, time: {}".format(len(episode_rewards),
                                                                      np.mean(episode_rewards[-arglist.save_rate:]),
-                                                                     round(time.time()-t_start, 3)))
+                                                                     round(time.time() - t_start, 3)))
                     env.logger.save("State",
                                     arglist.save_dir,
                                     filename=arglist.exp_name + '_state' + '_' + str(prev_ep_ct) + arglist.log_append)
                     break
                 continue
 
-            # Update all trainers, if not in display or benchmark mode
+            # Test current super agent's performance against all other agents
+            # Check if all level has been evaluated and update p_select
+            if (terminal or done) and evaluate_flag and evaluation_done:
+                evaluate_flag = False
+                level_performances = level_performances / arglist.evaluate_length
+                np.set_printoptions(precision=2)
+                print("Evaluation complete, against level 0 to {} performances: {}".format(arglist.level,
+                                                                                           level_performances))
+
+                worst_level = np.argmin(level_performances)
+                worst_performing_levels.append(worst_level)
+                print("Worst performing level is {}".format(worst_level))
+
+                # update p_select #TODO: check some other distributions
+                p_opponent_selection = np.ones(arglist.level + 1) * 0.6 / arglist.level
+                p_opponent_selection[worst_level] = 0.4
+                print("Opponent selection probability set to: {}".format(p_opponent_selection))
+
+            # Pop evaluation list and update current evaluate level
+            if (terminal or done) and evaluate_flag:
+                last_episode_agent_reward = agent_rewards[get_role_index(arglist.training_role[0])][-2]
+                level_performances[evaluate_level] += last_episode_agent_reward
+
+                if len(evaluate_levels) == 0:
+                    evaluation_done = True
+                else:
+                    evaluate_level = evaluate_levels.pop(0)  # get the level to evaluate next
+
+                # set up p_selection distribution
+                p_opponent_selection = np.zeros(arglist.level + 1)
+                p_opponent_selection[evaluate_level] = 1
+
+            # set up evaluate schedules
+            if (terminal or done) and (len(episode_rewards) % arglist.evaluate_rate == 0):
+                print("Freezing current super-agent's network and performing evaluation.")
+                evaluate_flag = True
+                evaluation_done = False
+                eval_len = arglist.evaluate_length
+                evaluate_levels = []
+                level_performances = np.zeros(arglist.level + 1)
+                for level in range(arglist.level + 1):
+                    for i in range(eval_len):
+                        evaluate_levels.append(level)
+                evaluate_level = evaluate_levels.pop(0)
+
+
+
+            # In evaluate mode, don't perform model updates
+            if evaluate_flag:
+                continue
+
+
+
+            # If not in display or benchmark mode, update trainers with index in updating_indices.
             loss = None
             for i, agent in enumerate(trainers):
-                if i in arglist.customized_index:
+                if i in updating_indices:
+                    assert(agent.name == "super_defender_1")
                     agent.preupdate()
             for i, agent in enumerate(trainers):
-                if i in arglist.customized_index:
-                    loss = agent.update(trainers, train_step)
+                if i in updating_indices:
+                    loss = agent.update(selected_trainers, train_step)
                 if arglist.log_loss and loss is not None:
                     log_loss(arglist, ep_ct, "agent_{}".format(i), loss=loss[1])
 
             if len(episode_rewards) % 100 == 0 and progress:
-                print("Episode {} Reached. Time: {}".format(len(episode_rewards), time.time() - t_start))
+                print("Episode {} Reached. Time: {:.2f} s".format(len(episode_rewards), time.time() - t_start))
                 progress = False
             elif len(episode_rewards) % 100 != 0 and not progress:
                 progress = True
@@ -452,7 +583,7 @@ def train(arglist):
                 # TODO: Implement some checks so that we don't overwrite old networks unintentionally?
 
                 # Save model state
-                tf_util.save_state(arglist.save_dir + arglist.exp_name + '_' + str(len(episode_rewards)+prev_ep_ct),
+                tf_util.save_state(arglist.save_dir + arglist.exp_name + '_' + str(len(episode_rewards) + prev_ep_ct),
                                    saver=saver)
 
                 # Print statement depends on whether or not there are adversaries
@@ -469,6 +600,8 @@ def train(arglist):
                         np.mean(episode_rewards[-arglist.save_rate:]),
                         [np.mean(reward[-arglist.save_rate:]) for reward in agent_rewards],
                         round(time.time() - t_start, 3)))
+                    if arglist.level_k_select_print:
+                        print("Opponent selection probability: {}".format(p_opponent_selection))
 
                 # Reset start time to current time
                 t_start = time.time()
@@ -478,8 +611,29 @@ def train(arglist):
                 for reward in agent_rewards:
                     final_ep_ag_rewards.append(np.mean(reward[-arglist.save_rate:]))
 
+
+                # Pickle dump trainning curve info
+                if not os.path.exists(arglist.plots_dir):
+                    os.makedirs(arglist.plots_dir)
+
+                rew_file_name = arglist.plots_dir + arglist.exp_name + '_rewards.pkl'
+                with open(rew_file_name, 'wb') as fp:
+                    pickle.dump(final_ep_rewards, fp)
+
+                agrew_file_name = arglist.plots_dir + arglist.exp_name + '_agrewards.pkl'
+                with open(agrew_file_name, 'wb') as fp:
+                    pickle.dump(final_ep_ag_rewards, fp)
+
+                worst_level_file_name = arglist.plots_dir + arglist.exp_name + '_worst_performing_level.pkl'
+                with open(worst_level_file_name, 'wb') as fp:
+                    pickle.dump(worst_performing_levels, fp)
+
+
             # Saves final episode reward for plotting training curve later
             if len(episode_rewards) > arglist.num_episodes:
+                if not os.path.exists(arglist.plots_dir):
+                    os.makedirs(arglist.plots_dir)
+
                 rew_file_name = arglist.plots_dir + arglist.exp_name + '_rewards.pkl'
                 with open(rew_file_name, 'wb') as fp:
                     pickle.dump(final_ep_rewards, fp)
@@ -493,6 +647,7 @@ def train(arglist):
                                 filename=arglist.exp_name + '_state' + '_' + str(len(episode_rewards) + prev_ep_ct))
 
                 print('...Finished total of {} episodes.'.format(len(episode_rewards)))
+                print('...Worst performing history: {}'.format(worst_performing_levels))
                 break
 
 

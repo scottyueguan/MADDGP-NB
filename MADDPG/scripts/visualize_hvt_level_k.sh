@@ -1,6 +1,6 @@
 #!/bin/sh
-attacker_level=4
-defender_level=4
+attacker_level=5
+defender_level=5
 
 exp_name=hvt_level_$attacker_level"_attacker_vs_level_"$defender_level"_defender"
 scenario=converge/simple_hvt_1v1_random
@@ -10,7 +10,7 @@ episode_len=50
 num_adversaries=1
 pred_policy=maddpg
 prey_policy=maddpg
-load_dir=/Users/scottguan/CONVERGE/MADDGP-NB/MADDPG/data/level_k_data/
+load_dir=/Users/scottguan/CONVERGE/MADDGP-NB/MADDPG/data/
 
 
 
