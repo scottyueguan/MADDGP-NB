@@ -258,7 +258,7 @@ class MADDPGAgentTrainer(AgentTrainer):
 
         # Create experience buffer
         self.replay_buffer = ReplayBuffer(int(1e6))
-        self.max_replay_buffer_len = args.batch_size * args.max_episode_len
+        self.max_replay_buffer_len = 30 # args.batch_size * args.max_episode_len TODO: Change back
         self.replay_sample_index = None
 
     def action(self, obs):

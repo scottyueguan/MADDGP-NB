@@ -214,7 +214,7 @@ def get_update_indices(training_role=None, opponent_role=None, p_opponent=None, 
     if training_role == "defender":
         opponent_indices = range(max_level + 1)
         training_index = max_level + 1
-    elif training_role == "defender":
+    elif training_role == "attacker":
         opponent_indices = range(1, max_level + 2)
         training_index = 0
     opponent_select_level = np.random.choice(range(max_level + 1), 1, p=p_opponent)[0]
@@ -438,9 +438,6 @@ def train(arglist):
             # Collect experience
             for i, agent in enumerate(selected_trainers):
                 agent.experience(obs_n[i], action_n[i], rew_n[i], new_obs_n[i], done_n[i], terminal)
-                if agent.name == "super_defender_1":
-                    DEBUG = True
-            assert(DEBUG == True)
             obs_n = new_obs_n
 
             for i, rew in enumerate(rew_n):
@@ -521,8 +518,8 @@ def train(arglist):
                 print("Worst performing level is {}".format(worst_level))
 
                 # update p_select #TODO: check some other distributions
-                p_opponent_selection = np.ones(arglist.level + 1) * 0.6 / arglist.level
-                p_opponent_selection[worst_level] = 0.4
+                # p_opponent_selection = np.ones(arglist.level + 1) * 0.6 / arglist.level
+                p_opponent_selection[worst_level] = 1
                 print("Opponent selection probability set to: {}".format(p_opponent_selection))
 
             # Pop evaluation list and update current evaluate level
@@ -564,7 +561,6 @@ def train(arglist):
             loss = None
             for i, agent in enumerate(trainers):
                 if i in updating_indices:
-                    assert(agent.name == "super_defender_1")
                     agent.preupdate()
             for i, agent in enumerate(trainers):
                 if i in updating_indices:

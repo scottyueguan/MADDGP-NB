@@ -2,9 +2,9 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import pickle
 
-max_level = 0
+max_level = 1
 
-level_0_agrewards = pickle.load(open("../model17_level_k_data/maddpg_hvt_1v1_level_0_attacker_agrewards.pkl", 'rb'))
+level_0_agrewards = pickle.load(open("../level_k_performance_data/maddpg_hvt_1v1_level_0_attacker_agrewards.pkl", 'rb'))
 level_0_attacker_rewards = level_0_agrewards[0::2]
 level_0_defender_rewards = level_0_agrewards[1::2]
 

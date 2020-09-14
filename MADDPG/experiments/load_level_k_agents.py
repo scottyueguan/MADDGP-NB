@@ -119,8 +119,8 @@ def parse_args():
                         help="Number of frames of agent history to include in training")
 
     #level-k
-    parser.add_argument('--attacker-level', type=int, help='Level of the attacker.')
-    parser.add_argument('--defender-level', type=int, help='Level of the defender.')
+    parser.add_argument('--attacker-level', help='Level of the attacker.')
+    parser.add_argument('--defender-level', help='Level of the defender.')
 
     return parser.parse_args()
 
@@ -176,15 +176,23 @@ def get_trainers(env, num_adversaries, obs_shape_n, arglist):
     good_agent_level = arglist.defender_level
 
     # Adversaries
-    for i in range(num_adversaries):
+    if adv_agent_level == 'super':
         trainers.append(trainer(
-            'level_{}_attacker_{}'.format(adv_agent_level, i), model, obs_shape_n, env.action_space, i, arglist, role="adversary",
+            'super_attacker_{}'.format(0), model, obs_shape_n, env.action_space, 0, arglist, role="adversary",
+            local_q_func=(arglist.adv_policy=='ddpg')))
+    else:
+        trainers.append(trainer(
+            'level_{}_attacker_{}'.format(adv_agent_level, 0), model, obs_shape_n, env.action_space, 0, arglist, role="adversary",
             local_q_func=(arglist.adv_policy=='ddpg')))
 
     # Good Agents
-    for i in range(num_adversaries, env.n):
+    if good_agent_level == 'super':
         trainers.append(trainer(
-            'level_{}_defender_{}'.format(good_agent_level, i), model, obs_shape_n, env.action_space, i, arglist,
+            'super_defender_{}'.format(1), model, obs_shape_n, env.action_space, 1, arglist,
+            local_q_func=(arglist.adv_policy=='ddpg')))
+    else:
+        trainers.append(trainer(
+            'super_defender_{}'.format(good_agent_level, 1), model, obs_shape_n, env.action_space, 1, arglist,
             local_q_func=(arglist.good_policy=='ddpg')))
 
     return trainers
@@ -264,19 +272,29 @@ def train(arglist):
             print('Loading previous state...')
 
             attacker_subfolder = "level_{}_attacker/".format(arglist.attacker_level)
+            var_pre_attacker = "level_{}_attacker_{}".format(arglist.attacker_level, 0)
             defender_subfolder = "level_{}_defender/".format(arglist.defender_level)
+            var_pre_defender = "level_{}_defender_{}".format(arglist.attacker_level, 1)
 
-            attacker_model_file = "maddpg_hvt_1v1_level_{}_attacker".format(arglist.attacker_level)
-            defender_model_file = "maddpg_hvt_1v1_level_{}_defender".format(arglist.defender_level)
+            if arglist.attacker_level == "super":
+                attacker_subfolder = "super_attacker/"
+                var_pre_attacker = "super_attacker_0"
+            if arglist.defender_level == "super":
+                defender_subfolder = "super_defender/"
+                var_pre_defender = "super_defender_1"
 
-            print("Attacker Model File: " + arglist.load_dir + attacker_subfolder + attacker_model_file)
+
+            attacker_model_file = "level_{}_attacker".format(arglist.attacker_level)
+            defender_model_file = "level_{}_defender".format(arglist.defender_level)
+
+            print("Attacker Model File: " + arglist.load_dir + attacker_model_file)
             # tf_util.load_state(fname=arglist.load_dir + attacker_model_file, var_name="level_{}_attakcer_{}".format(arglist.attacker_level, 0))
-            tf_util.load_state(fname=arglist.load_dir + attacker_subfolder +attacker_model_file,
-                               var_prefix="level_{}_attacker_{}".format(arglist.attacker_level, 0))
+            tf_util.load_state(fname=arglist.load_dir + attacker_model_file,
+                               var_prefix= var_pre_attacker)
 
-            print("Defender Model File: " + arglist.load_dir + defender_subfolder + defender_model_file)
-            tf_util.load_state(fname=arglist.load_dir + defender_subfolder + defender_model_file,
-                               var_prefix="level_{}_defender_{}".format(arglist.defender_level, 1))
+            print("Defender Model File: " + arglist.load_dir + defender_model_file)
+            tf_util.load_state(fname=arglist.load_dir +  defender_model_file,
+                               var_prefix = var_pre_defender)
 
 
 
