@@ -42,7 +42,7 @@ six==1.14.0
 skccm==0.2.dev0
 tensorboard==1.15.0
 tensorflow-estimator==1.15.1
-tensorflow-gpu==1.15.0
+tensorflow-gpu==2.3.1
 termcolor==1.1.0
 urllib3==1.25.8
 Werkzeug==1.0.1
