@@ -20,4 +20,4 @@ setup(name='maddpg',
       packages=find_packages(),
       include_package_data=True,
       zip_safe=False,
-      install_requires=['gym', 'joblib', 'matplotlib', 'numpy', 'numpy-stl', 'skccm', 'tensorflow==1.15'])
+      install_requires=['gym', 'joblib', 'matplotlib', 'numpy', 'numpy-stl', 'skccm', 'tensorflow==2.6.4'])
